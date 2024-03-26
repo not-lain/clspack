@@ -1,12 +1,6 @@
-[project]
-name = "clspack"
-version = "0.0.1"
-authors = [
-  { name="hafedh hichri", email="hhichri60@gmail.com" },
+[build-system]
+requires = [
+            "setuptools>=42",
+            "wheel"
 ]
-description = "clspack is a python library that packagizes python classes"
-readme = "README.md"
-
-[project.urls]
-Homepage = "https://github.com/not-lain/clspack"
-Issues = "https://github.com/not-lain/clspack/issues"
+build-backend = "setuptools.build_meta"
