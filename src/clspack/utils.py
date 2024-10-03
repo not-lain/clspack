@@ -2,7 +2,6 @@ import inspect
 import os
 import warnings
 
-
 def pack(cls, out_folder="package"):
     """a function to inspect a class that was defined in __main__
     Args:
@@ -13,6 +12,7 @@ def pack(cls, out_folder="package"):
     f.__class__.mro()
 
     """
+    global cls_to_file
     cls_name = str(cls.mro()[0])[17:-2]
     for key, value in cls.__dict__.items():
         if key == "__module__":
@@ -50,16 +50,15 @@ def pack(cls, out_folder="package"):
         else:
             try:
                 # try to get the function/method code
+                # or a class attribute
                 st = f"{cls_name}.{key}"
                 source_code = inspect.getsource(eval(st))
                 cls_to_file += source_code + "\n"
             except:  # noqa: E722
-                # case it's a class attribute
-                cls_to_file += "  " + key + " = " + repr(value) + "\n"
-    if os.path.exists(out_folder): 
-        os.rmdir(out_folder)
-    os.mkdir(out_folder)
-    with open(os.path.join(out_folder,"__init__.py"),"w",encoding="utf-8") as f : 
+                 # hidden magic methods that were not specified
+                  # cls_to_file += "  " + key + " = " + repr(value) + "\n"
+                  pass
+    with open(os.path.join(out_folder,"__init__.py"),"w") as f : 
         f.write("")
-    with open(os.path.join(out_folder,"architecture.py"),"w",encoding="utf-8") as f:
+    with open(os.path.join(out_folder,"architecture.py"),"w") as f:
         f.write(cls_to_file)
