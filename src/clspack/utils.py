@@ -2,7 +2,7 @@ import inspect
 import os
 import warnings
 
-def pack(cls, out_folder="package"):
+def pack(cls):
     """a function to inspect a class that was defined in __main__
     Args:
       cls = takes the class
@@ -58,7 +58,4 @@ def pack(cls, out_folder="package"):
                  # hidden magic methods that were not specified
                   # cls_to_file += "  " + key + " = " + repr(value) + "\n"
                   pass
-    with open(os.path.join(out_folder,"__init__.py"),"w") as f : 
-        f.write("")
-    with open(os.path.join(out_folder,"architecture.py"),"w") as f:
-        f.write(cls_to_file)
+    return cls_to_file
