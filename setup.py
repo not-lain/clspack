@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="clspack",
-    version="0.0.1",
+    version="0.0.2",
     description="clspack is a python library that packagizes python classes",
     long_description=pathlib.Path("README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
