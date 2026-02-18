@@ -7,10 +7,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 from clspack import pack
 from external import Placeholder
 
-with open(os.path.join(os.path.dirname(__file__), "external.py"), "r", encoding="utf-8") as f:
-    external_source = f.read().strip()
-
-
 # Class defined locally — simulates the "__main__" use case
 class MyClass:
     """hi"""
