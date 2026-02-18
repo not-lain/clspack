@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from clspack import pack
 from external import Placeholder
 
+
 class MyClass:
     """hi"""
 
@@ -43,6 +44,7 @@ def test_local_class_contains_attribute():
 
 def test_local_class_returns_string():
     assert isinstance(pack(MyClass), str)
+
 
 def test_external_class_contains_header():
     result = pack(Placeholder)
