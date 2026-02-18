@@ -31,12 +31,12 @@ def pack(cls, output_file: Optional[str] = None) -> str:
     imports = []
     parent_classes = []
 
-    for base in cls.__mro__[1:-1]:  # Exclude cls itself and 'object'
+    for base in cls.__bases__:  # Only direct parent classes as declared
+        if base is object:
+            continue
         if base.__module__ != cls_module:
             imports.append(f"from {base.__module__} import {base.__name__}")
-            parent_classes.append(base.__name__)
-        else:
-            parent_classes.append(base.__name__)
+        parent_classes.append(base.__name__)
 
     # Add imports
     if imports:
@@ -78,10 +78,12 @@ def pack(cls, output_file: Optional[str] = None) -> str:
                 lines.append(indented_source)
             except (OSError, TypeError):
                 pass
-        # Handle class attributes
+        # Handle class attributes (skip non-reproducible runtime objects)
         elif not inspect.isclass(value):
             try:
                 attr_repr = repr(value)
+                if attr_repr.startswith("<"):
+                    continue
                 lines.append(f"    {key} = {attr_repr}")
             except Exception:
                 pass
