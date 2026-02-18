@@ -26,9 +26,6 @@ class MyClass:
         pass
 
 
-# --- tests for a locally-defined class ---
-
-
 def test_local_class_contains_header():
     result = pack(MyClass)
     assert "class MyClass" in result
@@ -52,10 +49,6 @@ def test_local_class_contains_attribute():
 def test_local_class_returns_string():
     assert isinstance(pack(MyClass), str)
 
-
-# --- tests for a class imported from an external file ---
-
-
 def test_external_class_contains_header():
     result = pack(Placeholder)
     assert "class Placeholder" in result
@@ -78,9 +71,6 @@ def test_external_class_contains_attribute():
 
 def test_external_class_returns_string():
     assert isinstance(pack(Placeholder), str)
-
-
-# --- error handling ---
 
 
 def test_raises_for_non_class_int():
