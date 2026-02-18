@@ -7,7 +7,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 from clspack import pack
 from external import Placeholder
 
-# Class defined locally — simulates the "__main__" use case
 class MyClass:
     """hi"""
 
