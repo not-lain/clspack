@@ -1,61 +1,136 @@
 import inspect
-import os
+import textwrap
 import warnings
+from typing import Optional
 
-def pack(cls):
-    """a function to inspect a class that was defined in __main__
-    Args:
-      cls = takes the class
 
-    important :
-    to get the class from a variable that was created you can use
-    f.__class__.mro()
-
+def pack(cls, output_file: Optional[str] = None) -> str:
     """
-    global cls_to_file
-    cls_name = str(cls.mro()[0])[17:-2]
-    for key, value in cls.__dict__.items():
-        if key == "__module__":
-            if value != "__main__":
-                # case class not defined in __main__ so no need to complete
-                # we can import the class directly from its file
-                # TODO: create the other function
-                raise NotImplementedError(f"""class {cls_name} not defined in __main__
-                                        and we did not support this feature yet
-                                        any contributions are welcome at https://github.com/not-lain/clspack""")
+    Extract and package a Python class source code.
 
-            else:
-                cls_to_file = ""
-                # TODO: check if none of the inhereted methods belong to __main__ too
-                inheretances = [str(i)[8:-2] for i in cls.mro()[1:-1]]
-                for i, ancestor in enumerate(inheretances):
-                    index = len(ancestor) - ancestor[::-1].index(".") - 1
-                    print(ancestor[:index], ancestor[index + 1 :])
-                    module, inheretances[i] = ancestor[:index], ancestor[index + 1 :]
-                    if "__main__" not in module:
-                        # for cases where we are inheriting from other classes that are defined in __main__
-                        cls_to_file += f"from {module} import {inheretances[i]}\n"
-                        #TODO: check if the the module is already imported in the cls_to_file
-                        # to cleanup for cases that the import is written in different line such as this one :
-                        # from transformers import AutoModelForXXX
-                        # from transformers import PushToHubMixin
-                    else : 
-                        warnings.warn(f"""the class {inheretances[i]} was defined in __main__
-                                      and we did not support when there are inheritances that are defined in __main__ yet
-                                      any contributions are welcome at https://github.com/not-lain/clspack""")
-                inheretances = ",".join(inheretances)
-                cls_to_file += f"class {cls_name}({inheretances}):\n"
-        elif key == "__doc__":
-            cls_to_file += "  " + repr(value) + "\n"
+    Args:
+        cls: The class to pack
+        output_file: Optional file path to save the packed class
+
+    Returns:
+        The packed class source code as a string
+
+    Raises:
+        NotImplementedError: If class is not defined in __main__
+        TypeError: If cls is not a class
+    """
+    if not inspect.isclass(cls):
+        raise TypeError(f"Expected a class, got {type(cls)}")
+
+    cls_name = cls.__name__
+    cls_module = cls.__module__
+
+    # Check if class is defined in __main__
+    if cls_module != "__main__":
+        raise NotImplementedError(
+            f"Class '{cls_name}' is not defined in __main__ (module: {cls_module}).\n"
+            f"This feature is not supported yet.\n"
+            f"Contributions welcome at https://github.com/not-lain/clspack"
+        )
+
+    # Build the packed class code
+    lines = []
+
+    # Handle imports for parent classes
+    imports = []
+    parent_classes = []
+
+    for base in cls.__mro__[1:-1]:  # Exclude cls itself and 'object'
+        if base.__module__ != "__main__":
+            imports.append(f"from {base.__module__} import {base.__name__}")
+            parent_classes.append(base.__name__)
         else:
+            warnings.warn(
+                f"Parent class '{base.__name__}' is defined in __main__. "
+                f"Inheritance from __main__ classes is not fully supported."
+            )
+            parent_classes.append(base.__name__)
+
+    # Add imports
+    if imports:
+        lines.extend(sorted(set(imports)))
+        lines.append("")
+
+    # Build class definition
+    parents_str = ", ".join(parent_classes) if parent_classes else ""
+    lines.append(f"class {cls_name}({parents_str}):")
+
+    # Add docstring
+    if cls.__doc__:
+        lines.append(f'    """{cls.__doc__}"""')
+
+    # Process class attributes and methods
+    for key, value in cls.__dict__.items():
+        # Skip special attributes
+        if key in ("__module__", "__doc__", "__dict__", "__weakref__"):
+            continue
+
+        # Skip dunder methods that are inherited
+        if key.startswith("__") and key.endswith("__"):
+            if key not in ("__init__", "__new__", "__call__"):
+                continue
+
+        # Handle classmethods and staticmethods
+        if isinstance(value, (classmethod, staticmethod)):
             try:
-                # try to get the function/method code
-                # or a class attribute
-                st = f"{cls_name}.{key}"
-                source_code = inspect.getsource(eval(st))
-                cls_to_file += source_code + "\n"
-            except:  # noqa: E722
-                 # hidden magic methods that were not specified
-                  # cls_to_file += "  " + key + " = " + repr(value) + "\n"
-                  pass
-    return cls_to_file
+                source = inspect.getsource(value.__func__)
+                indented_source = _indent_source(source, 1)
+                lines.append(indented_source)
+            except (OSError, TypeError):
+                pass
+        # Handle methods and functions
+        elif inspect.isfunction(value) or inspect.ismethod(value):
+            try:
+                source = inspect.getsource(value)
+                indented_source = _indent_source(source, 1)
+                lines.append(indented_source)
+            except (OSError, TypeError):
+                pass
+        # Handle class attributes
+        elif not inspect.isclass(value):
+            try:
+                attr_repr = repr(value)
+                lines.append(f"    {key} = {attr_repr}")
+            except Exception:
+                pass
+
+    # Join all lines
+    result = "\n".join(lines)
+
+    # Save to file if specified
+    if output_file:
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(result)
+            f.write("\n")
+
+    return result
+
+
+def _indent_source(source: str, level: int = 1) -> str:
+    """
+    Properly indent source code.
+
+    Args:
+        source: The source code to indent
+        level: Number of indentation levels (4 spaces each)
+
+    Returns:
+        Indented source code
+    """
+    indent = "    " * level
+    dedented = textwrap.dedent(source)
+    lines = dedented.split("\n")
+    indented_lines = []
+
+    for line in lines:
+        if line.strip():
+            indented_lines.append(indent + line)
+        else:
+            indented_lines.append(line)
+
+    return "\n".join(indented_lines)
