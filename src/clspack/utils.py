@@ -1,6 +1,5 @@
 import inspect
 import textwrap
-import warnings
 from typing import Optional
 
 
@@ -25,14 +24,6 @@ def pack(cls, output_file: Optional[str] = None) -> str:
     cls_name = cls.__name__
     cls_module = cls.__module__
 
-    # Check if class is defined in __main__
-    if cls_module != "__main__":
-        raise NotImplementedError(
-            f"Class '{cls_name}' is not defined in __main__ (module: {cls_module}).\n"
-            f"This feature is not supported yet.\n"
-            f"Contributions welcome at https://github.com/not-lain/clspack"
-        )
-
     # Build the packed class code
     lines = []
 
@@ -41,14 +32,10 @@ def pack(cls, output_file: Optional[str] = None) -> str:
     parent_classes = []
 
     for base in cls.__mro__[1:-1]:  # Exclude cls itself and 'object'
-        if base.__module__ != "__main__":
+        if base.__module__ != cls_module:
             imports.append(f"from {base.__module__} import {base.__name__}")
             parent_classes.append(base.__name__)
         else:
-            warnings.warn(
-                f"Parent class '{base.__name__}' is defined in __main__. "
-                f"Inheritance from __main__ classes is not fully supported."
-            )
             parent_classes.append(base.__name__)
 
     # Add imports
