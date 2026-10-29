@@ -1,103 +1,226 @@
 import inspect
+import os
 import textwrap
-from typing import Optional
+from typing import List, Optional, Union
+
+# attributes Python adds to every class body that should not be reproduced
+_IMPLICIT_ATTRIBUTES = {
+    "__module__",
+    "__qualname__",
+    "__doc__",
+    "__dict__",
+    "__weakref__",
+    "__firstlineno__",
+    "__static_attributes__",
+    "__annotations__",
+    "__annotate__",
+    "__annotate_func__",
+    "__annotations_cache__",
+    "__orig_bases__",
+    "__parameters__",
+    "__abstractmethods__",
+    "_abc_impl",
+}
 
 
-def pack(cls, output_file: Optional[str] = None) -> str:
+def pack(
+    cls,
+    output_file: Optional[Union[str, os.PathLike]] = None,
+    print_output: bool = False,
+) -> str:
     """
     Extract and package a Python class source code.
 
     Args:
         cls: The class to pack
         output_file: Optional file path to save the packed class
+        print_output: If True, print the packed class
 
     Returns:
         The packed class source code as a string
 
     Raises:
-        NotImplementedError: If class is not defined in __main__
         TypeError: If cls is not a class
     """
     if not inspect.isclass(cls):
         raise TypeError(f"Expected a class, got {type(cls)}")
 
-    cls_name = cls.__name__
-    cls_module = cls.__module__
+    imports = _build_imports(cls)
+    source = _class_source(cls)
+    result = "\n".join(imports) + "\n\n\n" + source if imports else source
 
-    # Build the packed class code
-    lines = []
+    if print_output:
+        print(result)
 
-    # Handle imports for parent classes
-    imports = []
-    parent_classes = []
-
-    for base in cls.__bases__:  # Only direct parent classes as declared
-        if base is object:
-            continue
-        if base.__module__ != cls_module:
-            imports.append(f"from {base.__module__} import {base.__name__}")
-        parent_classes.append(base.__name__)
-
-    # Add imports
-    if imports:
-        lines.extend(sorted(set(imports)))
-        lines.append("")
-
-    # Build class definition
-    parents_str = ", ".join(parent_classes) if parent_classes else ""
-    lines.append(f"class {cls_name}({parents_str}):")
-
-    # Add docstring
-    if cls.__doc__:
-        lines.append(f'    """{cls.__doc__}"""')
-
-    # Process class attributes and methods
-    for key, value in cls.__dict__.items():
-        # Skip special attributes
-        if key in ("__module__", "__doc__", "__dict__", "__weakref__"):
-            continue
-
-        # Skip dunder methods that are inherited
-        if key.startswith("__") and key.endswith("__"):
-            if key not in ("__init__", "__new__", "__call__"):
-                continue
-
-        # Handle classmethods and staticmethods
-        if isinstance(value, (classmethod, staticmethod)):
-            try:
-                source = inspect.getsource(value.__func__)
-                indented_source = _indent_source(source, 1)
-                lines.append(indented_source)
-            except (OSError, TypeError):
-                pass
-        # Handle methods and functions
-        elif inspect.isfunction(value) or inspect.ismethod(value):
-            try:
-                source = inspect.getsource(value)
-                indented_source = _indent_source(source, 1)
-                lines.append(indented_source)
-            except (OSError, TypeError):
-                pass
-        # Handle class attributes (skip non-reproducible runtime objects)
-        elif not inspect.isclass(value):
-            try:
-                attr_repr = repr(value)
-                if attr_repr.startswith("<"):
-                    continue
-                lines.append(f"    {key} = {attr_repr}")
-            except Exception:
-                pass
-
-    # Join all lines
-    result = "\n".join(lines)
-
-    # Save to file if specified
     if output_file:
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(result)
             f.write("\n")
 
     return result
+
+
+def _build_imports(cls) -> List[str]:
+    """
+    Build the import lines needed for the parent classes and metaclass.
+
+    Args:
+        cls: The class to inspect
+
+    Returns:
+        Sorted list of import lines
+    """
+    imports = set()
+    metaclass = _explicit_metaclass(cls)
+    dependencies = list(cls.__bases__)
+    if metaclass is not None:
+        dependencies.append(metaclass)
+
+    for dep in dependencies:
+        if dep is object or dep.__module__ in ("builtins", cls.__module__):
+            continue
+        # nested classes are imported through their outermost class
+        imports.add(f"from {dep.__module__} import {dep.__qualname__.split('.')[0]}")
+
+    return sorted(imports)
+
+
+def _explicit_metaclass(cls):
+    """
+    Get the metaclass only if it is not already inherited from a base class.
+
+    Args:
+        cls: The class to inspect
+
+    Returns:
+        The metaclass, or None if it is implied
+    """
+    metaclass = type(cls)
+    if metaclass is type or any(type(base) is metaclass for base in cls.__bases__):
+        return None
+    return metaclass
+
+
+def _class_source(cls) -> str:
+    """
+    Get the class source code, rebuilding it if the source file is unavailable.
+
+    Args:
+        cls: The class to get the source of
+
+    Returns:
+        The class source code
+    """
+    try:
+        return textwrap.dedent(inspect.getsource(cls)).rstrip()
+    except (OSError, TypeError):
+        # e.g. classes defined in a notebook or an interactive session
+        return _rebuild_class(cls)
+
+
+def _rebuild_class(cls) -> str:
+    """
+    Rebuild the class source code member by member.
+
+    Args:
+        cls: The class to rebuild
+
+    Returns:
+        The rebuilt class source code
+    """
+    parents = [base.__qualname__ for base in cls.__bases__ if base is not object]
+    metaclass = _explicit_metaclass(cls)
+    if metaclass is not None:
+        parents.append(f"metaclass={metaclass.__qualname__}")
+    header = (
+        f"class {cls.__name__}({', '.join(parents)}):"
+        if parents
+        else f"class {cls.__name__}:"
+    )
+
+    members = []
+
+    if cls.__doc__:
+        members.append(_format_docstring(cls.__doc__))
+
+    for key, value in cls.__dict__.items():
+        if key in _IMPLICIT_ATTRIBUTES:
+            continue
+
+        # Handle classmethods and staticmethods
+        if isinstance(value, (classmethod, staticmethod)):
+            source = _function_source(value.__func__, key)
+            if source:
+                members.append(source)
+        # Handle properties, the getter/setter/deleter each carry their decorator
+        elif isinstance(value, property):
+            for func in (value.fget, value.fset, value.fdel):
+                source = _function_source(func, key)
+                if source:
+                    members.append(source)
+        # Handle methods and functions
+        elif inspect.isfunction(value):
+            source = _function_source(value, key)
+            if source:
+                members.append(source)
+        # Handle nested classes (skip references to classes defined elsewhere)
+        elif inspect.isclass(value):
+            if value.__qualname__ == f"{cls.__qualname__}.{key}":
+                members.append(_class_source(value))
+        # Handle class attributes (skip non-reproducible runtime objects)
+        elif not (key.startswith("__") and key.endswith("__")):
+            try:
+                attr_repr = repr(value)
+            except Exception:
+                continue
+            if not attr_repr.startswith("<"):
+                members.append(f"{key} = {attr_repr}")
+
+    if not members:
+        members.append("pass")
+
+    body = "\n\n".join(_indent_source(member, 1) for member in members)
+    return f"{header}\n{body}"
+
+
+def _function_source(func, name: str) -> Optional[str]:
+    """
+    Get the source code of a function defined in a class body.
+
+    Args:
+        func: The function to get the source of
+        name: The attribute name the function is stored under
+
+    Returns:
+        The function source code, or None if it is unavailable
+    """
+    # skip functions defined elsewhere and assigned to the class
+    if func is None or func.__name__ not in (name, "<lambda>"):
+        return None
+    try:
+        return textwrap.dedent(inspect.getsource(func)).rstrip()
+    except (OSError, TypeError):
+        # e.g. methods generated by decorators such as @dataclass
+        return None
+
+
+def _format_docstring(doc: str) -> str:
+    """
+    Format a docstring as a valid triple quoted string literal.
+
+    Args:
+        doc: The docstring
+
+    Returns:
+        The docstring literal
+    """
+    doc = inspect.cleandoc(doc)
+    doc = doc.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+    if doc.endswith('"'):
+        doc = doc[:-1] + '\\"'
+    if "\n" in doc:
+        return f'"""{doc}\n"""'
+    return f'"""{doc}"""'
 
 
 def _indent_source(source: str, level: int = 1) -> str:
