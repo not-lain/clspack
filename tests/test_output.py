@@ -1,5 +1,6 @@
-from clspack import pack
 from external import Placeholder
+
+from clspack import pack
 
 
 def test_default_does_not_print(capsys):

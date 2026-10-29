@@ -3,11 +3,11 @@
 import inspect
 
 import pytest
-
-from clspack import pack
 from external import Placeholder
 from inheritance import Registry, Shape
 from members import Empty, Point
+
+from clspack import pack
 
 _getsource = inspect.getsource
 

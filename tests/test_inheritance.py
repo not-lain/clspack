@@ -1,5 +1,6 @@
-from clspack import pack
 from inheritance import Child, CustomError, Registry, Shape
+
+from clspack import pack
 
 
 def test_external_base_is_imported():

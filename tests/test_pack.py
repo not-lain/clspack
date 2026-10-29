@@ -1,7 +1,7 @@
 import pytest
+from external import Placeholder
 
 from clspack import pack
-from external import Placeholder
 
 
 class MyClass:

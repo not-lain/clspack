@@ -1,4 +1,5 @@
 import pathlib
+
 from setuptools import find_packages, setup
 
 with open("src/clspack/__init__.py", "r", encoding="utf-8") as f:
@@ -28,11 +29,10 @@ setup(
     include_package_data=True,
     classifiers=[
         "Topic :: Utilities",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "License :: OSI Approved :: Apache Software License",
     ],
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     install_requires=[],
 )

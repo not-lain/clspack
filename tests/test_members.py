@@ -1,7 +1,7 @@
 import pytest
+from members import Empty, Point
 
 from clspack import pack
-from members import Empty, Point
 
 
 @pytest.fixture

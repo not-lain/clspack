@@ -1,7 +1,6 @@
 import inspect
 import os
 import textwrap
-from typing import List, Optional, Union
 
 # attributes Python adds to every class body that should not be reproduced
 _IMPLICIT_ATTRIBUTES = {
@@ -25,7 +24,7 @@ _IMPLICIT_ATTRIBUTES = {
 
 def pack(
     cls,
-    output_file: Optional[Union[str, os.PathLike]] = None,
+    output_file: str | os.PathLike | None = None,
     print_output: bool = False,
 ) -> str:
     """
@@ -60,7 +59,7 @@ def pack(
     return result
 
 
-def _build_imports(cls) -> List[str]:
+def _build_imports(cls) -> list[str]:
     """
     Build the import lines needed for the parent classes and metaclass.
 
@@ -171,7 +170,7 @@ def _rebuild_class(cls) -> str:
         elif not (key.startswith("__") and key.endswith("__")):
             try:
                 attr_repr = repr(value)
-            except Exception:
+            except Exception:  # noqa: BLE001, S112 - arbitrary __repr__ may raise anything
                 continue
             if not attr_repr.startswith("<"):
                 members.append(f"{key} = {attr_repr}")
@@ -183,7 +182,7 @@ def _rebuild_class(cls) -> str:
     return f"{header}\n{body}"
 
 
-def _function_source(func, name: str) -> Optional[str]:
+def _function_source(func, name: str) -> str | None:
     """
     Get the source code of a function defined in a class body.
 
